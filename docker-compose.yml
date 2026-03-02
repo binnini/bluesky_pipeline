@@ -1,3 +1,5 @@
+name: bluesky   # 프로젝트 네임스페이스 (컨테이너·볼륨·네트워크 prefix)
+
 services:
 
   # ─────────────────────────────────────────
@@ -32,8 +34,12 @@ services:
       timeout: 10s
       retries: 10
       start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1024M
 
-  # bluesky-raw 토픽 생성 (최초 1회)
   redpanda-init:
     image: docker.redpanda.com/redpandadata/redpanda:v24.1.13
     depends_on:
@@ -48,8 +54,12 @@ services:
           --replicas 1 && \
         echo "Topic bluesky-raw created."
     restart: on-failure
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
 
-  # Redpanda 웹 콘솔 (개발 편의용)
   redpanda-console:
     image: docker.redpanda.com/redpandadata/console:v2.6.0
     depends_on:
@@ -59,6 +69,11 @@ services:
       - "8080:8080"
     environment:
       KAFKA_BROKERS: redpanda:9092
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
 
   # ─────────────────────────────────────────
   # Serving Storage
@@ -80,6 +95,11 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1536M
 
   # ─────────────────────────────────────────
   # Visualization
@@ -87,7 +107,7 @@ services:
   grafana:
     image: grafana/grafana:10.4.3
     ports:
-      - "3000:3000"
+      - "3001:3000"   # wikiStreams가 3000 사용 중 → 3001로 분리
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: admin
@@ -101,6 +121,11 @@ services:
         condition: service_healthy
       loki:
         condition: service_started
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
 
   # ─────────────────────────────────────────
   # Logging
@@ -108,11 +133,16 @@ services:
   loki:
     image: grafana/loki:2.9.8
     ports:
-      - "3100:3100"
+      - "3101:3100"   # wikiStreams가 3100 사용 중 → 3101로 분리
     volumes:
       - ./services/loki/config.yml:/etc/loki/config.yml:ro
       - loki-data:/loki
     command: -config.file=/etc/loki/config.yml
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
 
   promtail:
     image: grafana/promtail:2.9.8
@@ -123,6 +153,11 @@ services:
     command: -config.file=/etc/promtail/config.yml
     depends_on:
       - loki
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
 
 volumes:
   redpanda-data:
