@@ -1,9 +1,135 @@
 services:
-  # redpanda:
-  # ingestor:
-  # processor:
-  # s3_sink:
-  # timescaledb:
-  # grafana:
-  # loki:
-  # promtail:
+
+  # ─────────────────────────────────────────
+  # Message Queue
+  # ─────────────────────────────────────────
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v24.1.13
+    command:
+      - redpanda
+      - start
+      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr internal://redpanda:9092,external://localhost:19092
+      - --pandaproxy-addr internal://0.0.0.0:8082,external://0.0.0.0:18082
+      - --advertise-pandaproxy-addr internal://redpanda:8082,external://localhost:18082
+      - --schema-registry-addr internal://0.0.0.0:8081,external://0.0.0.0:18081
+      - --rpc-addr redpanda:33145
+      - --advertise-rpc-addr redpanda:33145
+      - --mode dev-container
+      - --smp 1
+      - --memory 512M
+      - --default-log-level=warn
+    ports:
+      - "19092:19092"   # Kafka API (host → container)
+      - "9644:9644"     # Admin API
+      - "18081:18081"   # Schema Registry
+      - "18082:18082"   # Pandaproxy (REST)
+    volumes:
+      - redpanda-data:/var/lib/redpanda/data
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy:.*true'"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  # bluesky-raw 토픽 생성 (최초 1회)
+  redpanda-init:
+    image: docker.redpanda.com/redpandadata/redpanda:v24.1.13
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        rpk topic create bluesky-raw \
+          --brokers redpanda:9092 \
+          --partitions 1 \
+          --replicas 1 && \
+        echo "Topic bluesky-raw created."
+    restart: on-failure
+
+  # Redpanda 웹 콘솔 (개발 편의용)
+  redpanda-console:
+    image: docker.redpanda.com/redpandadata/console:v2.6.0
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_BROKERS: redpanda:9092
+
+  # ─────────────────────────────────────────
+  # Serving Storage
+  # ─────────────────────────────────────────
+  timescaledb:
+    image: timescale/timescaledb:2.14.2-pg16
+    environment:
+      POSTGRES_DB: bluesky
+      POSTGRES_USER: bluesky
+      POSTGRES_PASSWORD: bluesky
+    ports:
+      - "5432:5432"
+    volumes:
+      - timescaledb-data:/var/lib/postgresql/data
+      - ./services/timescaledb/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bluesky -d bluesky"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ─────────────────────────────────────────
+  # Visualization
+  # ─────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.4.3
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./services/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./services/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      loki:
+        condition: service_started
+
+  # ─────────────────────────────────────────
+  # Logging
+  # ─────────────────────────────────────────
+  loki:
+    image: grafana/loki:2.9.8
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./services/loki/config.yml:/etc/loki/config.yml:ro
+      - loki-data:/loki
+    command: -config.file=/etc/loki/config.yml
+
+  promtail:
+    image: grafana/promtail:2.9.8
+    volumes:
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./services/promtail/config.yml:/etc/promtail/config.yml:ro
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      - loki
+
+volumes:
+  redpanda-data:
+  timescaledb-data:
+  grafana-data:
+  loki-data:
+
+networks:
+  default:
+    name: bluesky-net
