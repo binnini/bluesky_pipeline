@@ -1,0 +1,9 @@
+services:
+  # redpanda:
+  # ingestor:
+  # processor:
+  # s3_sink:
+  # timescaledb:
+  # grafana:
+  # loki:
+  # promtail:
