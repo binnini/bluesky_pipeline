@@ -1,0 +1,2 @@
+atproto>=0.0.54
+confluent-kafka>=2.3.0

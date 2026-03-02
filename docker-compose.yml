@@ -48,11 +48,15 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        rpk topic create bluesky-raw \
-          --brokers redpanda:9092 \
-          --partitions 1 \
-          --replicas 1 && \
-        echo "Topic bluesky-raw created."
+        if rpk topic list --brokers redpanda:9092 | grep -q "^bluesky-raw"; then
+          echo "Topic bluesky-raw already exists, skipping."
+        else
+          rpk topic create bluesky-raw \
+            --brokers redpanda:9092 \
+            --partitions 1 \
+            --replicas 1
+          echo "Topic bluesky-raw created."
+        fi
     restart: on-failure
     deploy:
       resources:
@@ -74,6 +78,24 @@ services:
         limits:
           cpus: "0.5"
           memory: 256M
+
+  # ─────────────────────────────────────────
+  # Application Services
+  # ─────────────────────────────────────────
+  ingestor:
+    build: ./services/ingestor
+    environment:
+      KAFKA_BROKERS: redpanda:9092
+      KAFKA_TOPIC: bluesky-raw
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
 
   # ─────────────────────────────────────────
   # Serving Storage
