@@ -1,4 +1,242 @@
 {
-  "__comment": "Grafana 대시보드 프로비저닝 파일 (추후 작성)",
-  "panels": []
+  "uid": "bluesky-pipeline",
+  "title": "BlueSky Pipeline",
+  "description": "Bluesky Firehose 실시간 파이프라인 모니터링",
+  "tags": ["bluesky"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "1m",
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "templating": { "list": [] },
+  "annotations": { "list": [] },
+  "panels": [
+
+    {
+      "id": 1,
+      "title": "포스트 수 (선택 기간)",
+      "type": "stat",
+      "datasource": { "type": "postgres", "uid": "timescaledb" },
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+      "targets": [
+        {
+          "rawSql": "SELECT SUM(total_posts)::bigint AS \"value\" FROM post_volume WHERE $__timeFilter(ts)",
+          "format": "table",
+          "refId": "A",
+          "datasource": { "type": "postgres", "uid": "timescaledb" }
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background",
+        "graphMode": "none",
+        "orientation": "auto",
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": { "mode": "fixed", "fixedColor": "blue" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "blue", "value": null }]
+          }
+        },
+        "overrides": []
+      }
+    },
+
+    {
+      "id": 2,
+      "title": "유니크 키워드 수 (선택 기간)",
+      "type": "stat",
+      "datasource": { "type": "postgres", "uid": "timescaledb" },
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+      "targets": [
+        {
+          "rawSql": "SELECT COUNT(DISTINCT keyword)::bigint AS \"value\" FROM keyword_trends WHERE $__timeFilter(ts)",
+          "format": "table",
+          "refId": "A",
+          "datasource": { "type": "postgres", "uid": "timescaledb" }
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background",
+        "graphMode": "none",
+        "orientation": "auto",
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": { "mode": "fixed", "fixedColor": "purple" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "purple", "value": null }]
+          }
+        },
+        "overrides": []
+      }
+    },
+
+    {
+      "id": 3,
+      "title": "파이프라인 지연",
+      "type": "stat",
+      "datasource": { "type": "postgres", "uid": "timescaledb" },
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+      "targets": [
+        {
+          "rawSql": "SELECT EXTRACT(EPOCH FROM (NOW() - MAX(ts)))::bigint AS \"value\" FROM post_volume",
+          "format": "table",
+          "refId": "A",
+          "datasource": { "type": "postgres", "uid": "timescaledb" }
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background",
+        "graphMode": "none",
+        "orientation": "auto",
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 0,
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 120 },
+              { "color": "red",    "value": 300 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+
+    {
+      "id": 4,
+      "title": "Ingestor 활동 (최근 5분)",
+      "type": "stat",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
+      "targets": [
+        {
+          "expr": "count_over_time({job=\"docker\"} |= \"누적 처리\" [5m])",
+          "legendFormat": "로그 수",
+          "refId": "A",
+          "queryType": "instant",
+          "datasource": { "type": "loki", "uid": "loki" }
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["sum"], "fields": "", "values": false },
+        "colorMode": "background",
+        "graphMode": "none",
+        "orientation": "auto",
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red",   "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+
+    {
+      "id": 5,
+      "title": "포스트 볼륨 (1분 단위)",
+      "type": "timeseries",
+      "datasource": { "type": "postgres", "uid": "timescaledb" },
+      "gridPos": { "x": 0, "y": 4, "w": 24, "h": 8 },
+      "targets": [
+        {
+          "rawSql": "SELECT ts AS \"time\", total_posts AS \"포스트 수\" FROM post_volume WHERE $__timeFilter(ts) ORDER BY ts",
+          "format": "time_series",
+          "refId": "A",
+          "datasource": { "type": "postgres", "uid": "timescaledb" }
+        }
+      ],
+      "options": {
+        "tooltip": { "mode": "single", "sort": "none" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "barAlignment": 0,
+            "lineWidth": 1,
+            "fillOpacity": 60,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "lineInterpolation": "linear"
+          },
+          "color": { "mode": "palette-classic" },
+          "unit": "short"
+        },
+        "overrides": []
+      }
+    },
+
+    {
+      "id": 6,
+      "title": "Top 20 키워드 빈도",
+      "type": "barchart",
+      "datasource": { "type": "postgres", "uid": "timescaledb" },
+      "gridPos": { "x": 0, "y": 12, "w": 24, "h": 12 },
+      "targets": [
+        {
+          "rawSql": "SELECT keyword, SUM(count) AS \"빈도\" FROM keyword_trends WHERE $__timeFilter(ts) GROUP BY keyword ORDER BY \"빈도\" DESC LIMIT 20",
+          "format": "table",
+          "refId": "A",
+          "datasource": { "type": "postgres", "uid": "timescaledb" }
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "xField": "keyword",
+        "barWidth": 0.9,
+        "groupWidth": 0.7,
+        "showValue": "auto",
+        "stacking": "none",
+        "tooltip": { "mode": "single", "sort": "none" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "lineWidth": 1,
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false }
+          },
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      }
+    }
+
+  ]
 }

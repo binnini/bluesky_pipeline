@@ -63,5 +63,62 @@
 
 ---
 
+## 2026-03-04
+
+### Phase 1 — Processor 구현 (Redpanda → TimescaleDB)
+
+- `services/processor/aggregator.py`
+  - `preprocess_keywords()`: 소문자 → 특수문자 제거 → NLTK English stopwords → 길이 필터(2~50자)
+  - `MinuteBucketAggregator`: 해시태그 카운터 누적 후 `flush(bucket_ts)` 호출 시 TimescaleDB INSERT
+    - `keyword_trends`: 1분 윈도우 내 3회 이상 등장한 키워드만 저장
+    - `post_volume`: 분당 총 포스트 수 저장
+    - INSERT 성공/실패 무관하게 버퍼 초기화 (중복 방지)
+- `services/processor/main.py`
+  - TimescaleDB 연결 재시도 (최대 10회, 3초 간격)
+  - confluent-kafka Consumer (`bluesky-raw` 구독, group=processor)
+  - wall-clock 기준 60초마다 `aggregator.flush()` 트리거
+  - SIGTERM/SIGINT 수신 시 최종 flush 후 정상 종료
+- **동작 확인**: 첫 flush에서 누적 offset 3,446,182건 소화
+  ```
+  keyword_trends INSERT: ts=2026-03-04T16:28:00+00:00, keywords=53933
+  post_volume INSERT: ts=2026-03-04T16:28:00+00:00, total_posts=3446182
+  ```
+  Top 키워드: epsteinweb(24k), nsfw(16k), nowplaying(7k), art(6k), iran(5k)
+
+### Phase 1 — S3 Sink 구현 (Redpanda → MinIO Parquet)
+
+- `services/s3_sink/sink.py`
+  - `ParquetBuffer`: pyarrow + snappy 압축으로 Parquet 변환 후 boto3로 S3 업로드
+  - Flush 조건 (먼저 도달하는 것): 시간 경계(hour) 변경 OR 건수 50,000 초과
+  - S3 경로: `s3://bluesky-raw/year=YYYY/month=MM/day=DD/hour=HH/part-NNNNN.parquet`
+  - `_wait_for_bucket()`: MinIO 기동 완료까지 재시도 (최대 20회)
+  - **AWS S3 전환**: `S3_ENDPOINT_URL` 환경변수 제거 + AWS 자격증명 교체만으로 마이그레이션 가능
+- **인프라**: docker-compose에 MinIO(RELEASE.2024-01-16) + minio-init 서비스 추가
+  - 포트: `9010:9000`(S3 API), `9011:9001`(Console) — ClickHouse가 9000 점유 중
+  - minio-init: `mc alias set` 재시도 루프로 MinIO 준비 완료 후 버킷 생성
+  - distroless 이미지 특성상 healthcheck 제거, `service_started` 조건으로 처리
+- **동작 확인**: Parquet 파일 정상 적재
+  ```
+  S3 업로드 완료: s3://bluesky-raw/year=2026/month=03/day=03/hour=15/part-00075.parquet (50000 rows, 9809.4 KB)
+  ```
+
+### Phase 1 — Grafana 대시보드 초안
+
+- `services/grafana/dashboards/trends.json` (Grafana 10.4 JSON, schemaVersion 38)
+  - **Stat ×4** (상단 행): 포스트 수, 유니크 키워드 수, 파이프라인 지연(green<120s/yellow<300s/red), Ingestor 활동(Loki count_over_time 5m)
+  - **Time series**: 분당 포스트 볼륨 (bar style, fillOpacity 60)
+  - **Bar chart**: Top 20 키워드 빈도 (horizontal, 선택 기간 집계)
+- `services/grafana/provisioning/datasources/datasources.yml`에 UID 추가 (`timescaledb`, `loki`) → 대시보드 JSON에서 고정 참조
+
+### 디스크 현황 (2026-03-04 기준)
+| 볼륨 | 사용량 |
+|---|---|
+| redpanda-data | 1.56 GB |
+| timescaledb-data | 75.96 MB |
+| loki-data | 2.88 MB |
+| grafana-data | 997 KB |
+
+---
+
 ## 다음 작업
-- [ ] Processor 구현 (Redpanda → 1분 집계 → TimescaleDB)
+- [ ] Phase 2: Terraform 인프라 (EC2 t3.medium, S3, SG, IAM, EIP)

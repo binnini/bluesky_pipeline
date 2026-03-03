@@ -14,18 +14,18 @@
   - [x] reconnect.py (Full Jitter Exponential Backoff)
   - [x] main.py (WebSocket Consumer → confluent-kafka Producer)
   - [x] docker-compose ingestor 서비스 추가 및 동작 확인
-- [ ] Processor (Redpanda → TimescaleDB)
-  - [ ] aggregator.py (1분 버킷 집계, 키워드 전처리)
-  - [ ] main.py (confluent-kafka Consumer 루프)
-  - [ ] docker-compose processor 서비스 추가
-- [ ] S3 Sink (Redpanda → S3 Parquet)
-  - [ ] sink.py (Parquet 변환 + S3 업로드)
-  - [ ] docker-compose s3_sink 서비스 추가
-- [ ] Grafana 대시보드 초안
-  - [ ] Top 20 키워드 빈도 (Bar chart)
-  - [ ] 포스트 볼륨 시계열 (Time series)
-  - [ ] 파이프라인 처리 지연 (Gauge)
-  - [ ] Ingestor 연결 상태 (Stat panel)
+- [x] Processor (Redpanda → TimescaleDB)
+  - [x] aggregator.py (1분 버킷 집계, 키워드 전처리)
+  - [x] main.py (confluent-kafka Consumer 루프)
+  - [x] docker-compose processor 서비스 추가
+- [x] S3 Sink (Redpanda → S3 Parquet)
+  - [x] sink.py (Parquet 변환 + S3 업로드)
+  - [x] docker-compose s3_sink 서비스 추가 (MinIO 포함)
+- [x] Grafana 대시보드 초안
+  - [x] Top 20 키워드 빈도 (Bar chart, horizontal)
+  - [x] 포스트 볼륨 시계열 (Time series, bar style)
+  - [x] 파이프라인 처리 지연 (Stat, 초 단위 / green→yellow→red)
+  - [x] Ingestor 연결 상태 (Stat, Loki count_over_time)
 
 ## Phase 2 — 클라우드 배포
 - [ ] Terraform 인프라 작성 (EC2 t3.medium, S3, SG, IAM, EIP)
