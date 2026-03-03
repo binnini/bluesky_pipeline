@@ -110,6 +110,22 @@
   - **Bar chart**: Top 20 키워드 빈도 (horizontal, 선택 기간 집계)
 - `services/grafana/provisioning/datasources/datasources.yml`에 UID 추가 (`timescaledb`, `loki`) → 대시보드 JSON에서 고정 참조
 
+### 트러블슈팅 — Grafana 포트 바인딩 오류 (macOS)
+
+- **증상**: `docker ps`는 3000/3001로 정상 표시되나 실제 접속 시 포트가 밀려있음
+  - 다른 프로젝트 Grafana: 3000 → 실제 3001로 바인딩
+  - BlueSky Grafana: 3001 → 실제 3002로 바인딩
+- **원인**: Docker Desktop for Mac의 userland-proxy(vpnkit) 경쟁 조건
+  - Linux는 iptables로 포트를 직접 제어하지만, macOS는 `com.docker.backend` 단일 프로세스가 모든 포트 포워딩을 중계
+  - 컨테이너 재시작 시 vpnkit이 포트를 해제·재바인딩하는 사이 공백 구간에 다른 컨테이너가 선점
+  - `docker ps`는 설정값을 그대로 표시하므로 에러 없이 조용히 발생
+- **해결**: 맥미니 OS 재기동으로 포트 바인딩 상태 완전 초기화
+- **재발 방지**: 컨테이너 시작 순서 고정 (다른 프로젝트 → BlueSky 순)
+  ```bash
+  docker compose -f ~/workSpace/wikiStreams/docker-compose.yml up -d
+  cd ~/workSpace/blueSky && docker compose up -d
+  ```
+
 ### 디스크 현황 (2026-03-04 기준)
 | 볼륨 | 사용량 |
 |---|---|
