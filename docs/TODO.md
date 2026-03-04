@@ -36,15 +36,32 @@
 - [x] TimescaleDB 데이터 보존 정책 (30일 chunk dropping)
 
 ## Phase 3 — 안정화 및 CI/CD
-- [ ] Unit 테스트 (schema, aggregator)
+
+### 3-1. 보안 강화 (즉시 대응)
+- [ ] Grafana 기본 패스워드 변경 (`admin/admin` → 강력한 패스워드)
+- [ ] TimescaleDB 기본 패스워드 변경 (`bluesky/bluesky` → 강력한 패스워드)
+- [ ] S3 서버 측 암호화(SSE) 활성화
+
+### 3-2. 테스트
+- [ ] Unit 테스트 (schema.py — 해시태그 추출, 텍스트 필터)
+- [ ] Unit 테스트 (aggregator.py — 키워드 전처리, 1분 윈도우 집계)
 - [ ] Integration 테스트 (Redpanda → Processor → TimescaleDB)
 - [ ] Smoke 테스트 (헬스체크, Grafana 접근)
-- [ ] GitHub Actions CI/CD 파이프라인
+
+### 3-3. CI/CD
+- [ ] GitHub Actions CI/CD 파이프라인 (테스트 → 빌드 → EC2 배포 자동화)
+
+### 3-4. 신뢰성 개선
+- [ ] Redpanda 토픽 보존 기간 설정 (예: 7일) — 재시작 시 재처리 가능성 확보
 
 ## Phase 4 — 기능 확장
 - [ ] 감성 분석 (Sentiment)
-- [ ] 언어/지역별 분포
+- [ ] 언어/지역별 분포 (다국어 stopwords 포함)
 - [ ] 트렌드 비교 기능
+- [ ] Schema Registry 도입 (스키마 변경 이력 관리)
+- [ ] Exactly-once 보장 (중복 레코드 제거)
 
-## 미결 사항
-- [ ] Phase 3 착수 시점 결정
+## 미결 사항 (백로그)
+- [ ] TimescaleDB 단일 노드 HA 방안 검토 (Multi-AZ 또는 읽기 복제본)
+- [ ] Data Lineage / Governance 도구 도입 검토
+- [ ] Redpanda 파티션 확장 계획 수립 (트래픽 2배 이상 증가 대비)

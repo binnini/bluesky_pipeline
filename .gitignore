@@ -4,6 +4,9 @@ __pycache__/
 *.pyo
 .venv/
 
+# docs
+docs/evaluation_results/
+
 # Terraform
 infra/terraform/.terraform/
 infra/terraform/terraform.tfstate
