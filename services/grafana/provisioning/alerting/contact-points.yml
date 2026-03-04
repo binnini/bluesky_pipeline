@@ -1,0 +1,13 @@
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: slack-bluesky
+    receivers:
+      - uid: slack-bluesky
+        type: slack
+        settings:
+          url: "${SLACK_WEBHOOK_URL}"
+          title: '{{ if eq .Status "firing" }}🔴 [BlueSky] {{ .CommonLabels.alertname }}{{ else }}✅ [BlueSky] {{ .CommonLabels.alertname }} 해소됨{{ end }}'
+          text: '{{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
+          sendResolved: true

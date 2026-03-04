@@ -1,0 +1,149 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: bluesky-pipeline
+    folder: BlueSky Alerts
+    interval: 2m
+    rules:
+
+      # ── 1. Ingestor 연결 끊김 ─────────────────────────────────────────────
+      # Ingestor가 10분 동안 로그를 생성하지 않으면 Firehose 연결 끊김으로 판단
+      - uid: bluesky-ingestor-down
+        title: "Ingestor 연결 끊김"
+        condition: B
+        data:
+          - refId: A
+            datasourceUid: loki
+            queryType: range
+            relativeTimeRange:
+              from: 600   # 최근 10분
+              to: 0
+            model:
+              datasource:
+                type: loki
+                uid: loki
+              expr: 'sum(count_over_time({service="ingestor"}[10m]))'
+              queryType: range
+              refId: A
+          - refId: B
+            datasourceUid: "__expr__"
+            model:
+              type: classic_conditions
+              datasource:
+                type: __expr__
+                uid: __expr__
+              conditions:
+                - evaluator:
+                    params: [1]
+                    type: lt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    type: last
+                  type: query
+              refId: B
+        noDataState: Alerting
+        execErrState: Error
+        for: 2m
+        annotations:
+          summary: "Ingestor 10분 이상 로그 없음 — Firehose 연결 끊김 의심"
+          description: "BlueSky Ingestor가 10분 동안 로그를 생성하지 않았습니다. Firehose WebSocket 연결을 확인하세요."
+        labels:
+          severity: critical
+
+      # ── 2. 처리량 급감 ────────────────────────────────────────────────────
+      # Processor가 5분 동안 flush(keyword_trends INSERT)를 하지 않으면 처리 중단 의심
+      - uid: bluesky-throughput-drop
+        title: "처리량 급감"
+        condition: B
+        data:
+          - refId: A
+            datasourceUid: loki
+            queryType: range
+            relativeTimeRange:
+              from: 300   # 최근 5분
+              to: 0
+            model:
+              datasource:
+                type: loki
+                uid: loki
+              expr: 'sum(count_over_time({service="processor"} |= "keyword_trends INSERT" [5m]))'
+              queryType: range
+              refId: A
+          - refId: B
+            datasourceUid: "__expr__"
+            model:
+              type: classic_conditions
+              datasource:
+                type: __expr__
+                uid: __expr__
+              conditions:
+                - evaluator:
+                    params: [1]
+                    type: lt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    type: last
+                  type: query
+              refId: B
+        noDataState: Alerting
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: "Processor 5분 이상 flush 없음 — 처리량 급감 의심"
+          description: "Processor가 5분 동안 TimescaleDB에 집계 데이터를 기록하지 않았습니다. Redpanda 연결 및 Processor 상태를 확인하세요."
+        labels:
+          severity: warning
+
+      # ── 3. DB 에러율 ──────────────────────────────────────────────────────
+      # Processor 또는 S3 Sink에서 5분 내 에러 로그가 5건 초과 시 알림
+      - uid: bluesky-db-error-rate
+        title: "DB/S3 에러율 급증"
+        condition: B
+        data:
+          - refId: A
+            datasourceUid: loki
+            queryType: range
+            relativeTimeRange:
+              from: 300   # 최근 5분
+              to: 0
+            model:
+              datasource:
+                type: loki
+                uid: loki
+              expr: 'sum(count_over_time({service=~"processor|s3_sink"} |~ "(?i)(error|실패|오류)" [5m]))'
+              queryType: range
+              refId: A
+          - refId: B
+            datasourceUid: "__expr__"
+            model:
+              type: classic_conditions
+              datasource:
+                type: __expr__
+                uid: __expr__
+              conditions:
+                - evaluator:
+                    params: [5]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    type: last
+                  type: query
+              refId: B
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: "5분 내 에러 로그 5건 초과 — DB/S3 연결 문제 의심"
+          description: "Processor 또는 S3 Sink에서 에러 로그가 급증하고 있습니다. TimescaleDB 및 S3 연결 상태를 확인하세요."
+        labels:
+          severity: warning

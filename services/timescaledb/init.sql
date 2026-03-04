@@ -18,3 +18,7 @@ CREATE TABLE IF NOT EXISTS post_volume (
     window_sec  INTEGER     NOT NULL DEFAULT 60
 );
 SELECT create_hypertable('post_volume', 'ts', if_not_exists => TRUE);
+
+-- 데이터 보존 정책: 30일 초과 청크 자동 삭제
+SELECT add_retention_policy('keyword_trends', INTERVAL '30 days', if_not_exists => TRUE);
+SELECT add_retention_policy('post_volume',    INTERVAL '30 days', if_not_exists => TRUE);

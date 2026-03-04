@@ -1,4 +1,11 @@
-name: bluesky   # 프로젝트 네임스페이스 (컨테이너·볼륨·네트워크 prefix)
+name: bluesky
+
+# 클라우드(EC2 t4g.small) 전용 compose
+# 로컬과의 차이:
+#   - minio / minio-init 제거 → AWS S3 사용
+#   - redpanda-console 제거
+#   - s3_sink: S3_ENDPOINT_URL / AWS 자격증명 제거 (EC2 IAM 인스턴스 프로파일 자동 사용)
+#   - Grafana 포트: 3001 (로컬과 동일)
 
 services:
 
@@ -21,11 +28,6 @@ services:
       - --smp 1
       - --memory 256M
       - --default-log-level=warn
-    ports:
-      - "19092:19092"   # Kafka API (host → container)
-      - "9644:9644"     # Admin API
-      - "18081:18081"   # Schema Registry
-      - "18082:18082"   # Pandaproxy (REST)
     volumes:
       - redpanda-data:/var/lib/redpanda/data
     healthcheck:
@@ -64,21 +66,6 @@ services:
           cpus: "0.5"
           memory: 256M
 
-  redpanda-console:
-    image: docker.redpanda.com/redpandadata/console:v2.6.0
-    depends_on:
-      redpanda:
-        condition: service_healthy
-    ports:
-      - "8080:8080"
-    environment:
-      KAFKA_BROKERS: redpanda:9092
-    deploy:
-      resources:
-        limits:
-          cpus: "0.5"
-          memory: 128M   # 클라우드 배포 시 이 서비스 제거
-
   # ─────────────────────────────────────────
   # Application Services
   # ─────────────────────────────────────────
@@ -96,46 +83,6 @@ services:
         limits:
           cpus: "1.0"
           memory: 256M
-
-  # ─────────────────────────────────────────
-  # Object Storage (로컬 S3 호환)
-  # ─────────────────────────────────────────
-  minio:
-    image: minio/minio:RELEASE.2024-01-16T16-07-38Z
-    command: server /data --console-address ":9001"
-    ports:
-      - "9010:9000"   # S3 API  (ClickHouse가 9000 점유 → 9010으로 분리)
-      - "9011:9001"   # MinIO Console
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-    volumes:
-      - minio-data:/data
-    deploy:
-      resources:
-        limits:
-          cpus: "1.0"
-          memory: 256M  # 클라우드 배포 시 이 서비스 제거 (→ AWS S3)
-
-  minio-init:
-    image: minio/mc:RELEASE.2024-01-16T16-06-34Z
-    depends_on:
-      - minio
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        until mc alias set local http://minio:9000 minioadmin minioadmin; do
-          echo "MinIO 준비 중... 3초 후 재시도"
-          sleep 3
-        done
-        mc mb --ignore-existing local/bluesky-raw
-        echo "Bucket bluesky-raw ready."
-    restart: on-failure
-    deploy:
-      resources:
-        limits:
-          cpus: "0.5"
-          memory: 64M
 
   processor:
     build: ./services/processor
@@ -163,16 +110,14 @@ services:
       KAFKA_BROKERS: redpanda:9092
       KAFKA_TOPIC: bluesky-raw
       KAFKA_GROUP_ID: s3_sink
-      S3_BUCKET: bluesky-raw
-      S3_ENDPOINT_URL: http://minio:9000   # AWS 전환 시 이 줄 제거
-      AWS_ACCESS_KEY_ID: minioadmin
-      AWS_SECRET_ACCESS_KEY: minioadmin
-      MAX_RECORDS: "10000"               # 50000 → 10000: pyarrow 배치 메모리 절감
+      S3_BUCKET: bluesky-raw-707042668475
+      AWS_DEFAULT_REGION: ap-northeast-2
+      MAX_RECORDS: "10000"
+      # S3_ENDPOINT_URL 없음 → AWS S3 직접 사용
+      # AWS 자격증명 없음 → EC2 IAM 인스턴스 프로파일 자동 사용
     depends_on:
       redpanda:
         condition: service_healthy
-      minio:
-        condition: service_started
     restart: unless-stopped
     deploy:
       resources:
@@ -188,11 +133,11 @@ services:
     command:
       - "postgres"
       - "-c"
-      - "shared_buffers=64MB"      # 기본 128MB → 64MB
+      - "shared_buffers=64MB"
       - "-c"
-      - "work_mem=4MB"             # 기본 4MB (명시)
+      - "work_mem=4MB"
       - "-c"
-      - "max_connections=20"       # 기본 100 → 20 (ingestor/processor/grafana 합산 ~5)
+      - "max_connections=20"
       - "-c"
       - "effective_cache_size=256MB"
       - "-c"
@@ -203,8 +148,6 @@ services:
       POSTGRES_DB: bluesky
       POSTGRES_USER: bluesky
       POSTGRES_PASSWORD: bluesky
-    ports:
-      - "5432:5432"
     volumes:
       - timescaledb-data:/var/lib/postgresql/data
       - ./services/timescaledb/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
@@ -226,7 +169,7 @@ services:
   grafana:
     image: grafana/grafana:10.4.3
     ports:
-      - "3001:3000"   # wikiStreams가 3000 사용 중 → 3001로 분리
+      - "3001:3000"
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: admin
@@ -252,7 +195,7 @@ services:
   loki:
     image: grafana/loki:2.9.8
     ports:
-      - "3101:3100"   # wikiStreams가 3100 사용 중 → 3101로 분리
+      - "3100:3100"
     volumes:
       - ./services/loki/config.yml:/etc/loki/config.yml:ro
       - loki-data:/loki
@@ -283,7 +226,6 @@ volumes:
   timescaledb-data:
   grafana-data:
   loki-data:
-  minio-data:
 
 networks:
   default:

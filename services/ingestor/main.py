@@ -32,8 +32,8 @@ _producer = Producer(
     {
         "bootstrap.servers": KAFKA_BROKERS,
         "linger.ms": 50,                   # 소량 배치로 처리량 개선
-        "queue.buffering.max.messages": 100_000,
-        "queue.buffering.max.kbytes": 131_072,  # 128MB
+        "queue.buffering.max.messages": 10_000,   # 100k → 10k
+        "queue.buffering.max.kbytes": 32_768,     # 128MB → 32MB
     }
 )
 

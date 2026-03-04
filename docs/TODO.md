@@ -27,12 +27,13 @@
   - [x] 파이프라인 처리 지연 (Stat, 초 단위 / green→yellow→red)
   - [x] Ingestor 연결 상태 (Stat, Loki count_over_time)
 
-## Phase 2 — 클라우드 배포
-- [ ] Terraform 인프라 작성 (EC2 t3.medium, S3, SG, IAM, EIP)
-- [ ] EC2 배포 및 동작 확인
-- [ ] Loki 알림 규칙 (연결 끊김, 처리량 급감, DB 에러율)
-- [ ] 데이터 보존 정책 결정 (TimescaleDB 30일, S3 90일 → Glacier)
-- [ ] Grafana 접근 제어 (AWS SG IP 화이트리스트)
+## Phase 2 — 클라우드 배포 ✅
+- [x] Terraform 인프라 작성 (EC2 t4g.small ARM64, S3, SG, IAM, EIP)
+- [x] S3 데이터 보존 정책 (90일 → Glacier, lifecycle rule)
+- [x] Grafana 접근 제어 (AWS SG IP 화이트리스트 `1.213.250.69/32`)
+- [x] EC2 배포 및 동작 확인 (rsync → docker compose up)
+- [x] Loki 알림 규칙 (연결 끊김, 처리량 급감, DB 에러율) → Grafana Alerting + Slack
+- [x] TimescaleDB 데이터 보존 정책 (30일 chunk dropping)
 
 ## Phase 3 — 안정화 및 CI/CD
 - [ ] Unit 테스트 (schema, aggregator)
@@ -46,6 +47,4 @@
 - [ ] 트렌드 비교 기능
 
 ## 미결 사항
-- [ ] 데이터 보존 정책 확정 (TimescaleDB: 30일 / S3: 90일 후 Glacier)
-- [ ] Grafana 접근 제어 방식 (공개 vs IP 화이트리스트)
-- [ ] 알림 채널 선택 (Slack / 이메일)
+- [ ] Phase 3 착수 시점 결정

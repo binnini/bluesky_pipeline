@@ -9,8 +9,9 @@ ingester:
       kvstore:
         store: inmemory
       replication_factor: 1
-  chunk_idle_period: 5m
-  chunk_retain_period: 30s
+  chunk_idle_period: 3m      # 5m → 3m: 청크를 더 빨리 디스크로 플러시
+  chunk_retain_period: 15s   # 30s → 15s: 플러시 후 메모리 보관 시간 단축
+  max_chunk_age: 5m          # 최대 청크 수명 명시
   wal:
     enabled: false
 
